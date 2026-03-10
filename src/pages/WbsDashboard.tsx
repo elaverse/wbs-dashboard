@@ -52,32 +52,31 @@ export function WbsDashboard() {
     }
   }, [tasks]);
 
-  const handleAddTask = useCallback((task: WbsTask) => {
-    const withId = ensureIds([{ ...task }])[0];
-    setTasks((prev) => [...prev, withId]);
-  }, []);
+  const handleAddTask = useCallback(
+    async (task: WbsTask) => {
+      const withId = ensureIds([{ ...task }])[0];
+      const newTasks = [...tasks, withId];
+      setTasks(newTasks);
+      setSaving(true);
+      setError(null);
+      try {
+        await saveWbs(API_BASE, TOKEN, newTasks);
+        alert('추가되었습니다.');
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '추가 실패');
+        setTasks(tasks);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [tasks]
+  );
 
   return (
     <div style={{ minHeight: '100vh', padding: 24, fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif', background: '#f5f5f5', color: '#333' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>WBS Dashboard</h1>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            onClick={save}
-            disabled={saving}
-            style={{
-              padding: '10px 20px',
-              background: '#4caf50',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              cursor: saving ? 'not-allowed' : 'pointer',
-              fontSize: 14,
-              opacity: saving ? 0.6 : 1,
-            }}
-          >
-            {saving ? '저장 중...' : '저장'}
-          </button>
           <button
             onClick={load}
             disabled={loading}
@@ -128,6 +127,10 @@ export function WbsDashboard() {
             onSelectionChange={setSelectedIds}
             onTasksChange={setTasks}
             onAddClick={() => setModalOpen(true)}
+            onLoadClick={load}
+            onSaveClick={save}
+            loading={loading}
+            saving={saving}
           />
         </div>
         <div style={{ flex: 1 }}>

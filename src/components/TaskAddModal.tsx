@@ -6,27 +6,33 @@ import { validateTask } from '../utils/validation';
 interface TaskAddModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (task: WbsTask) => void;
+  onConfirm: (task: WbsTask) => void | Promise<void>;
 }
 
 export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) {
   const [form, setForm] = useState<WbsTask>(defaultTask);
+  const [submitting, setSubmitting] = useState(false);
 
   const update = useCallback((key: keyof WbsTask, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       const err = validateTask(form);
       if (err) {
         alert(err);
         return;
       }
-      onConfirm(form);
-      setForm(defaultTask);
-      onClose();
+      setSubmitting(true);
+      try {
+        await onConfirm(form);
+        setForm(defaultTask);
+        onClose();
+      } finally {
+        setSubmitting(false);
+      }
     },
     [form, onConfirm, onClose]
   );
@@ -101,9 +107,9 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
               </select>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>계획시작</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>예정일</label>
               <input
                 type="date"
                 value={form.plannedStart}
@@ -112,32 +118,25 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>계획종료</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>시작일</label>
               <input
                 type="date"
-                value={form.plannedEnd ?? ''}
-                onChange={(e) => update('plannedEnd', e.target.value || null)}
+                value={form.start ?? ''}
+                onChange={(e) => update('start', e.target.value || null)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>종료일</label>
+              <input
+                type="date"
+                value={form.end ?? ''}
+                onChange={(e) => update('end', e.target.value || null)}
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>기획자</label>
-              <input
-                value={form.planner}
-                onChange={(e) => update('planner', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>개발자</label>
-              <input
-                value={form.developer}
-                onChange={(e) => update('developer', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
-              />
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
               <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>PM</label>
               <input
@@ -146,14 +145,23 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
                 style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
               />
             </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>MM</label>
+              <input
+                type="number"
+                min={0}
+                value={form.mm}
+                onChange={(e) => update('mm', Number(e.target.value) || 0)}
+                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+              />
+            </div>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>MM</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>비고</label>
             <input
-              type="number"
-              min={0}
-              value={form.mm}
-              onChange={(e) => update('mm', Number(e.target.value) || 0)}
+              value={form.note ?? ''}
+              onChange={(e) => update('note', e.target.value || undefined)}
+              placeholder="비고"
               style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
             />
           </div>
@@ -161,15 +169,17 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
             <button
               type="button"
               onClick={handleCancel}
-              style={{ padding: '10px 20px', background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer' }}
+              disabled={submitting}
+              style={{ padding: '10px 20px', background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
             >
               취소
             </button>
             <button
               type="submit"
-              style={{ padding: '10px 20px', background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+              disabled={submitting}
+              style={{ padding: '10px 20px', background: '#2196f3', color: '#fff', border: 'none', borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
             >
-              추가
+              {submitting ? '추가 중...' : '추가'}
             </button>
           </div>
         </form>

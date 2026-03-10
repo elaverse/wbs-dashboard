@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import type { WbsTask } from '../types/wbs';
 import type { WbsFilter } from '../types/filter';
-import { StatusBadge } from './StatusBadge';
 import { STATUS_OPTIONS } from '../data/wbsData';
 import { exportToExcel } from '../utils/excelExport';
 
@@ -13,6 +12,10 @@ interface WbsTableProps {
   onSelectionChange: (ids: Set<string>) => void;
   onTasksChange: (tasks: WbsTask[]) => void;
   onAddClick: () => void;
+  onLoadClick: () => void;
+  onSaveClick: () => void;
+  loading?: boolean;
+  saving?: boolean;
 }
 
 export function WbsTable({
@@ -23,6 +26,10 @@ export function WbsTable({
   onSelectionChange,
   onTasksChange,
   onAddClick,
+  onLoadClick,
+  onSaveClick,
+  loading = false,
+  saving = false,
 }: WbsTableProps) {
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
@@ -78,6 +85,38 @@ export function WbsTable({
             style={{ padding: '8px 16px', background: '#4caf50', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14 }}
           >
             엑셀 다운로드
+          </button>
+          <button
+            onClick={onLoadClick}
+            disabled={loading}
+            style={{
+              padding: '8px 16px',
+              background: '#ff9800',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontSize: 14,
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? '조회 중...' : '조회'}
+          </button>
+          <button
+            onClick={onSaveClick}
+            disabled={saving}
+            style={{
+              padding: '8px 16px',
+              background: '#4caf50',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 6,
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: 14,
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            {saving ? '저장 중...' : '저장'}
           </button>
           <button
             onClick={onAddClick}
@@ -136,13 +175,13 @@ export function WbsTable({
               </th>
               <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>카테고리</th>
               <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>업무</th>
-              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>계획시작</th>
-              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>계획종료</th>
+              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>예정일</th>
+              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>시작일</th>
+              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>종료일</th>
               <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>상태</th>
-              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>기획자</th>
-              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>개발자</th>
               <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>PM</th>
               <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>MM</th>
+              <th style={{ padding: '10px 12px', background: '#fafafa', fontWeight: 600, fontSize: 13, color: '#555' }}>비고</th>
             </tr>
           </thead>
           <tbody>
@@ -189,8 +228,16 @@ export function WbsTable({
                   <td style={{ padding: '10px 12px', fontSize: 14 }}>
                     <input
                       type="date"
-                      value={t.plannedEnd ?? ''}
-                      onChange={(e) => updateTask(idx, 'plannedEnd', e.target.value || null)}
+                      value={t.start ?? ''}
+                      onChange={(e) => updateTask(idx, 'start', e.target.value || null)}
+                      style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
+                    />
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 14 }}>
+                    <input
+                      type="date"
+                      value={t.end ?? ''}
+                      onChange={(e) => updateTask(idx, 'end', e.target.value || null)}
                       style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
                     />
                   </td>
@@ -207,20 +254,6 @@ export function WbsTable({
                   </td>
                   <td style={{ padding: '10px 12px', fontSize: 14 }}>
                     <input
-                      value={t.planner}
-                      onChange={(e) => updateTask(idx, 'planner', e.target.value)}
-                      style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
-                    />
-                  </td>
-                  <td style={{ padding: '10px 12px', fontSize: 14 }}>
-                    <input
-                      value={t.developer}
-                      onChange={(e) => updateTask(idx, 'developer', e.target.value)}
-                      style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
-                    />
-                  </td>
-                  <td style={{ padding: '10px 12px', fontSize: 14 }}>
-                    <input
                       value={t.pm}
                       onChange={(e) => updateTask(idx, 'pm', e.target.value)}
                       style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
@@ -233,6 +266,14 @@ export function WbsTable({
                       value={t.mm ?? 0}
                       onChange={(e) => updateTask(idx, 'mm', Number(e.target.value) || 0)}
                       style={{ width: '100%', minWidth: 60, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
+                    />
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 14 }}>
+                    <input
+                      value={t.note ?? ''}
+                      onChange={(e) => updateTask(idx, 'note', e.target.value || undefined)}
+                      placeholder="비고"
+                      style={{ width: '100%', minWidth: 100, padding: '6px 8px', border: '1px solid #ddd', borderRadius: 4, fontSize: 13 }}
                     />
                   </td>
                 </tr>

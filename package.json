@@ -8,9 +8,12 @@
     "build:web": "vite build",
     "build:electron": "tsc -p electron",
     "preview": "vite preview -p 5173",
-    "start": "electron ."
+    "start": "electron .",
+    "upload:s3": "node scripts/upload-wbs-to-s3.js",
+    "upload:itsm": "node scripts/upload-wbs-to-itsm.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
