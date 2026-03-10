@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import type { WbsTask } from '../types/wbs';
 import type { WbsFilter } from '../types/filter';
 import { STATUS_OPTIONS, CATEGORY_OPTIONS } from '../data/wbsData';
@@ -10,7 +10,7 @@ interface WbsTableProps {
   onFilterChange: (f: WbsFilter) => void;
   selectedIds: Set<string>;
   onSelectionChange: (ids: Set<string>) => void;
-  onTasksChange: (tasks: WbsTask[]) => void;
+  onTasksChange: (tasks: WbsTask[] | ((prev: WbsTask[]) => WbsTask[])) => void;
   onAddClick: () => void;
   onLoadClick: () => void;
   onSaveClick: () => void;
@@ -20,6 +20,9 @@ interface WbsTableProps {
   theme?: 'default' | 'light';
   title?: string;
   tabFilter?: (t: WbsTask) => boolean;
+  plannerLabel?: string;
+  foPmLabel?: string;
+  boPmLabel?: string;
 }
 
 export function WbsTable({
@@ -38,6 +41,9 @@ export function WbsTable({
   theme = 'default',
   title = 'WBS 목록',
   tabFilter,
+  plannerLabel = '기획자',
+  foPmLabel = 'FO PM',
+  boPmLabel = 'BO PM',
 }: WbsTableProps) {
   const isDark = theme === 'default';
   const bg = isDark ? '#2d2d2d' : '#fff';
@@ -65,16 +71,21 @@ export function WbsTable({
     });
   }, [tasks, filter, tabFilter]);
 
+  const toId = (v: string | number | undefined, fallback: string) =>
+    v != null ? String(v) : fallback;
+
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      onSelectionChange(new Set(filteredTasks.filter((t) => t.id).map((t) => t.id!)));
+      onSelectionChange(
+        new Set(filteredTasks.filter((t) => t.id != null).map((t) => toId(t.id, '')))
+      );
     } else {
       onSelectionChange(new Set());
     }
   };
 
-  const handleSelectOne = (id: string | undefined, checked: boolean) => {
-    if (!id) return;
+  const handleSelectOne = (id: string, checked: boolean) => {
+    if (!id || id.startsWith('_')) return;
     const next = new Set(selectedIds);
     if (checked) next.add(id);
     else next.delete(id);
@@ -83,20 +94,26 @@ export function WbsTable({
 
   const handleBulkDelete = () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`선택한 ${selectedIds.size}개 항목을 삭제하시겠습니까?`)) return;
-    const next = tasks.filter((t) => !t.id || !selectedIds.has(t.id));
-    onTasksChange(next);
-    onSelectionChange(new Set());
+    onDeleteClick();
   };
 
-  const updateTask = (idx: number, key: keyof WbsTask, value: unknown) => {
-    const t = filteredTasks[idx];
-    const origIdx = tasks.findIndex((x) => x === t);
-    if (origIdx < 0) return;
-    const next = [...tasks];
-    next[origIdx] = { ...next[origIdx], [key]: value };
-    onTasksChange(next);
-  };
+  const updateTask = useCallback(
+    (taskId: string, key: keyof WbsTask, value: unknown) => {
+      if (!taskId || taskId.startsWith('_')) return;
+      const idStr = toId(taskId, '');
+      if (!idStr) return;
+      onTasksChange((prevTasks) => {
+        const origIdx = prevTasks.findIndex(
+          (x) => x.id != null && toId(x.id, '') === idStr
+        );
+        if (origIdx < 0) return prevTasks;
+        const next = [...prevTasks];
+        next[origIdx] = { ...next[origIdx], [key]: value };
+        return next;
+      });
+    },
+    [onTasksChange]
+  );
 
   const handleExport = () => exportToExcel(filteredTasks);
 
@@ -205,7 +222,7 @@ export function WbsTable({
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: textMuted }}>기획자</span>
+          <span style={{ fontSize: 13, color: textMuted }}>{plannerLabel}</span>
           <input
             value={filter.planner ?? ''}
             onChange={(e) => onFilterChange({ ...filter, planner: e.target.value || undefined })}
@@ -214,7 +231,7 @@ export function WbsTable({
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: textMuted }}>FO PM</span>
+          <span style={{ fontSize: 13, color: textMuted }}>{foPmLabel}</span>
           <input
             value={filter.foPm ?? ''}
             onChange={(e) => onFilterChange({ ...filter, foPm: e.target.value || undefined })}
@@ -223,7 +240,7 @@ export function WbsTable({
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: textMuted }}>BO PM</span>
+          <span style={{ fontSize: 13, color: textMuted }}>{boPmLabel}</span>
           <input
             value={filter.boPm ?? ''}
             onChange={(e) => onFilterChange({ ...filter, boPm: e.target.value || undefined })}
@@ -250,7 +267,7 @@ export function WbsTable({
               <th style={{ width: 40, textAlign: 'center', padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>
                 <input
                   type="checkbox"
-                  checked={filteredTasks.length > 0 && filteredTasks.every((t) => t.id && selectedIds.has(t.id))}
+                  checked={filteredTasks.length > 0 && filteredTasks.every((t) => t.id != null && selectedIds.has(toId(t.id, '')))}
                   onChange={(e) => handleSelectAll(e.target.checked)}
                   style={{ cursor: 'pointer', width: 16, height: 16 }}
                 />
@@ -261,17 +278,17 @@ export function WbsTable({
               <th style={{ width: 105, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>종료예정일</th>
               <th style={{ width: 105, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>종료일</th>
               <th style={{ width: 90, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>상태</th>
-              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>기획자</th>
-              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>FO PM</th>
-              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>BO PM</th>
+              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>{plannerLabel}</th>
+              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>{foPmLabel}</th>
+              <th style={{ width: 70, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>{boPmLabel}</th>
               <th style={{ width: 55, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>MM</th>
               <th style={{ minWidth: 200, padding: '10px 12px', background: bgHeader, fontWeight: 600, fontSize: 13, color: textMuted, borderBottom: `1px solid ${borderColor}` }}>비고</th>
             </tr>
           </thead>
           <tbody>
             {filteredTasks.map((t, idx) => {
-              const id = t.id ?? `_${idx}`;
-              const isRowChecked = id.startsWith('_') ? false : selectedIds.has(id);
+              const id = toId(t.id, `_${idx}`);
+              const isRowChecked = !id.startsWith('_') && selectedIds.has(id);
               return (
                 <tr
                   key={id}
@@ -291,7 +308,7 @@ export function WbsTable({
                     {isRowChecked ? (
                       <select
                         value={t.category ?? ''}
-                        onChange={(e) => updateTask(idx, 'category', e.target.value)}
+                        onChange={(e) => updateTask(id, 'category', e.target.value)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       >
                         {t.category && !(CATEGORY_OPTIONS as readonly string[]).includes(t.category) && (
@@ -308,8 +325,8 @@ export function WbsTable({
                   <td style={{ minWidth: 260, padding: '10px 12px', fontSize: 14 }}>
                     {isRowChecked ? (
                       <input
-                        value={t.task}
-                        onChange={(e) => updateTask(idx, 'task', e.target.value)}
+                        value={t.task ?? ''}
+                        onChange={(e) => updateTask(id, 'task', e.target.value)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -321,7 +338,7 @@ export function WbsTable({
                       <input
                         type="date"
                         value={t.start ?? ''}
-                        onChange={(e) => updateTask(idx, 'start', e.target.value || null)}
+                        onChange={(e) => updateTask(id, 'start', e.target.value || null)}
                         style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -333,7 +350,7 @@ export function WbsTable({
                       <input
                         type="date"
                         value={t.plannedEnd ?? ''}
-                        onChange={(e) => updateTask(idx, 'plannedEnd', e.target.value || null)}
+                        onChange={(e) => updateTask(id, 'plannedEnd', e.target.value || null)}
                         style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -345,7 +362,7 @@ export function WbsTable({
                       <input
                         type="date"
                         value={t.end ?? ''}
-                        onChange={(e) => updateTask(idx, 'end', e.target.value || null)}
+                        onChange={(e) => updateTask(id, 'end', e.target.value || null)}
                         style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -356,7 +373,7 @@ export function WbsTable({
                     {isRowChecked ? (
                       <select
                         value={t.status}
-                        onChange={(e) => updateTask(idx, 'status', e.target.value)}
+                        onChange={(e) => updateTask(id, 'status', e.target.value)}
                         style={{ width: '100%', minWidth: 80, padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       >
                         {STATUS_OPTIONS.map((s) => (
@@ -370,8 +387,8 @@ export function WbsTable({
                   <td style={{ width: 70, padding: '10px 12px', fontSize: 14 }}>
                     {isRowChecked ? (
                       <input
-                        value={t.planner}
-                        onChange={(e) => updateTask(idx, 'planner', e.target.value)}
+                        value={t.planner ?? ''}
+                        onChange={(e) => updateTask(id, 'planner', e.target.value)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -381,8 +398,8 @@ export function WbsTable({
                   <td style={{ width: 70, padding: '10px 12px', fontSize: 14 }}>
                     {isRowChecked ? (
                       <input
-                        value={t.foPm}
-                        onChange={(e) => updateTask(idx, 'foPm', e.target.value)}
+                        value={t.foPm ?? ''}
+                        onChange={(e) => updateTask(id, 'foPm', e.target.value)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -392,8 +409,8 @@ export function WbsTable({
                   <td style={{ width: 70, padding: '10px 12px', fontSize: 14 }}>
                     {isRowChecked ? (
                       <input
-                        value={t.boPm}
-                        onChange={(e) => updateTask(idx, 'boPm', e.target.value)}
+                        value={t.boPm ?? ''}
+                        onChange={(e) => updateTask(id, 'boPm', e.target.value)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -406,7 +423,7 @@ export function WbsTable({
                         type="number"
                         min={0}
                         value={t.mm ?? 0}
-                        onChange={(e) => updateTask(idx, 'mm', Number(e.target.value) || 0)}
+                        onChange={(e) => updateTask(id, 'mm', Number(e.target.value) || 0)}
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />
                     ) : (
@@ -417,7 +434,7 @@ export function WbsTable({
                     {isRowChecked ? (
                       <input
                         value={t.note ?? ''}
-                        onChange={(e) => updateTask(idx, 'note', e.target.value || undefined)}
+                        onChange={(e) => updateTask(id, 'note', e.target.value || undefined)}
                         placeholder="비고"
                         style={{ width: '100%', padding: '6px 8px', border: `1px solid ${inputBorder}`, borderRadius: 4, fontSize: 13, background: inputBg, color: textColor }}
                       />

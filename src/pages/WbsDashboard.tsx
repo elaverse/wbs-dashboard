@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import type { WbsTask } from '../types/wbs';
 import type { WbsFilter } from '../types/filter';
 import { WbsTable } from '../components/WbsTable';
@@ -6,17 +6,17 @@ import { GanttChart } from '../components/GanttChart';
 import { TaskAddModal } from '../components/TaskAddModal';
 import { loadWbs, saveWbs } from '../services/wbsApi';
 import { useTheme } from '../contexts/ThemeContext';
-
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://example.com';
-const TOKEN = import.meta.env.VITE_API_TOKEN ?? '';
+import { ApiConfigModal } from '../components/ApiConfigModal';
+import { getApiConfig } from '../config/apiConfig';
 
 function normalizeTask(t: WbsTask & { pm?: string }, i: number): WbsTask {
   const foPm = t.foPm ?? (t as { pm?: string }).pm ?? '';
   const boPm = t.boPm ?? '';
   const planner = t.planner ?? '';
+  const id = t.id != null ? String(t.id) : `task-${Date.now()}-${i}`;
   return {
     ...t,
-    id: t.id ?? `task-${Date.now()}-${i}`,
+    id,
     planner,
     foPm,
     boPm,
@@ -39,34 +39,67 @@ export function WbsDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
+  const [apiConfig, setApiConfigState] = useState(getApiConfig);
+  const tasksRef = useRef<WbsTask[]>([]);
+
+  const refreshApiConfig = useCallback(() => {
+    setApiConfigState(getApiConfig());
+  }, []);
+
+  const setTasksAndRef = useCallback((arg: WbsTask[] | ((prev: WbsTask[]) => WbsTask[])) => {
+    setTasks((prev) => {
+      const next = typeof arg === 'function' ? arg(prev) : arg;
+      tasksRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const toId = (v: string | number | undefined) =>
+    v != null ? String(v) : '';
 
   const load = useCallback(async () => {
+    const { apiBase, token } = getApiConfig();
+    if (!token) {
+      setError('API 토큰이 설정되지 않았습니다. 상단 "설정" 버튼에서 입력하세요.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setSelectedIds(new Set());
     try {
-      const data = await loadWbs(API_BASE, TOKEN);
-      setTasks(ensureIds(data));
+      const data = await loadWbs(apiBase, token);
+      setTasksAndRef(ensureIds(data));
     } catch (e) {
       setError(e instanceof Error ? e.message : '데이터 로드 실패');
-      setTasks([]);
+      setTasksAndRef([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    load();
+  }, [load]);
+
   const save = useCallback(async () => {
+    const { apiBase, token } = apiConfig;
+    if (!token) {
+      setError('API 토큰이 설정되지 않았습니다. 상단 "설정" 버튼에서 입력하세요.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await saveWbs(API_BASE, TOKEN, tasks);
+      const latestTasks = tasksRef.current;
+      await saveWbs(apiBase, token, latestTasks);
       alert('저장되었습니다.');
     } catch (e) {
       setError(e instanceof Error ? e.message : '저장 실패');
     } finally {
       setSaving(false);
     }
-  }, [tasks]);
+  }, [apiConfig]);
 
   const handleDelete = useCallback(async () => {
     if (selectedIds.size === 0) {
@@ -74,49 +107,64 @@ export function WbsDashboard() {
       return;
     }
     if (!confirm(`선택한 ${selectedIds.size}개 항목을 삭제하고 클라우드에 저장하시겠습니까?`)) return;
-    const next = tasks.filter((t) => !t.id || !selectedIds.has(t.id));
-    setTasks(next);
+    const current = tasksRef.current;
+    const next = current.filter(
+      (t) => !t.id || !selectedIds.has(toId(t.id))
+    );
+    setTasksAndRef(next);
     setSelectedIds(new Set());
+    const { apiBase, token } = apiConfig;
+    if (!token) {
+      setError('API 토큰이 설정되지 않았습니다.');
+      setTasksAndRef(current);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      await saveWbs(API_BASE, TOKEN, next);
+      await saveWbs(apiBase, token, next);
       alert('삭제되었습니다.');
     } catch (e) {
       setError(e instanceof Error ? e.message : '삭제 실패');
-      setTasks(tasks);
+      setTasksAndRef(current);
     } finally {
       setSaving(false);
     }
-  }, [tasks, selectedIds]);
+  }, [selectedIds]);
 
   const handleAddTask = useCallback(
     async (task: WbsTask) => {
+      const current = tasksRef.current;
       const withId = ensureIds([{ ...task }])[0];
-      const lastMatchingIndex = tasks.reduce(
+      const lastMatchingIndex = current.reduce(
         (idx, t, i) => (t.category === task.category ? i : idx),
         -1
       );
-      const insertIndex = lastMatchingIndex >= 0 ? lastMatchingIndex + 1 : tasks.length;
+      const insertIndex = lastMatchingIndex >= 0 ? lastMatchingIndex + 1 : current.length;
       const newTasks = [
-        ...tasks.slice(0, insertIndex),
+        ...current.slice(0, insertIndex),
         withId,
-        ...tasks.slice(insertIndex),
+        ...current.slice(insertIndex),
       ];
-      setTasks(newTasks);
+      const { apiBase, token } = apiConfig;
+      if (!token) {
+        setError('API 토큰이 설정되지 않았습니다.');
+        return;
+      }
+      setTasksAndRef(newTasks);
       setSaving(true);
       setError(null);
       try {
-        await saveWbs(API_BASE, TOKEN, newTasks);
+        await saveWbs(apiBase, token, newTasks);
         alert('추가되었습니다.');
       } catch (e) {
         setError(e instanceof Error ? e.message : '추가 실패');
-        setTasks(tasks);
+        setTasksAndRef(current);
       } finally {
         setSaving(false);
       }
     },
-    [tasks]
+    [apiConfig]
   );
 
   const textColor = theme === 'default' ? '#ffffff' : '#333';
@@ -137,7 +185,7 @@ export function WbsDashboard() {
   }, [tasks, filter, activeTab]);
 
   return (
-    <div style={{ minHeight: '100vh', padding: 24, fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif', background: bgPage, color: textColor }}>
+    <div style={{ minHeight: '100vh', padding: 24, paddingBottom: error ? 60 : 24, fontFamily: 'Segoe UI, system-ui, -apple-system, sans-serif', background: bgPage, color: textColor }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>WBS Dashboard</h1>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -174,6 +222,20 @@ export function WbsDashboard() {
             <span style={{ fontSize: 13 }}>{theme === 'default' ? '검은색' : '흰색'}</span>
           </label>
           <button
+            onClick={() => setConfigOpen(true)}
+            style={{
+              padding: '10px 20px',
+              background: theme === 'default' ? '#555' : '#e0e0e0',
+              color: textColor,
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 14,
+            }}
+          >
+            설정
+          </button>
+          <button
             onClick={load}
             disabled={loading}
             style={{
@@ -191,15 +253,10 @@ export function WbsDashboard() {
           </button>
         </div>
       </div>
-      {error && (
-        <div style={{ padding: '12px 16px', marginBottom: 16, background: theme === 'default' ? '#5c2a2a' : '#ffebee', color: '#ff8a80', borderRadius: 6, fontSize: 14 }}>
-          {error}
-        </div>
-      )}
       <div style={{ display: 'flex', gap: 0, marginBottom: 16, borderBottom: theme === 'default' ? '1px solid #444' : '1px solid #eee' }}>
         <button
           type="button"
-          onClick={() => setActiveTab('dev')}
+          onClick={() => { setActiveTab('dev'); setSelectedIds(new Set()); }}
           style={{
             padding: '12px 24px',
             fontSize: 14,
@@ -215,7 +272,7 @@ export function WbsDashboard() {
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('rd')}
+          onClick={() => { setActiveTab('rd'); setSelectedIds(new Set()); }}
           style={{
             padding: '12px 24px',
             fontSize: 14,
@@ -256,7 +313,7 @@ export function WbsDashboard() {
               onFilterChange={setFilter}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
-              onTasksChange={setTasks}
+              onTasksChange={setTasksAndRef}
               onAddClick={() => setModalOpen(true)}
               onLoadClick={load}
               onSaveClick={save}
@@ -268,14 +325,14 @@ export function WbsDashboard() {
               tabFilter={(t) => t.category !== '기술개발(R&D)'}
             />
           )}
-          {activeTab === 'rd' && (
+            {activeTab === 'rd' && (
             <WbsTable
               tasks={tasks}
               filter={filter}
               onFilterChange={setFilter}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
-              onTasksChange={setTasks}
+              onTasksChange={setTasksAndRef}
               onAddClick={() => setModalOpen(true)}
               onLoadClick={load}
               onSaveClick={save}
@@ -285,6 +342,9 @@ export function WbsDashboard() {
               theme={theme}
               title="R&D목록"
               tabFilter={(t) => t.category === '기술개발(R&D)'}
+              plannerLabel="설계자"
+              foPmLabel="FO개발자"
+              boPmLabel="BO개발자"
             />
           )}
         </div>
@@ -305,13 +365,59 @@ export function WbsDashboard() {
           )}
         </div>
       </div>
+      <ApiConfigModal
+        isOpen={configOpen}
+        onClose={() => setConfigOpen(false)}
+        onSave={() => { refreshApiConfig(); load(); }}
+        theme={theme}
+      />
       <TaskAddModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
         onConfirm={handleAddTask}
         theme={theme}
         defaultCategory={activeTab === 'rd' ? '기술개발(R&D)' : undefined}
+        plannerLabel={activeTab === 'rd' ? '설계자' : undefined}
+        foPmLabel={activeTab === 'rd' ? 'FO개발자' : undefined}
+        boPmLabel={activeTab === 'rd' ? 'BO개발자' : undefined}
       />
+      {error && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '12px 20px 12px 20px',
+            background: theme === 'default' ? '#5c2a2a' : '#ffebee',
+            color: '#ff8a80',
+            fontSize: 14,
+            boxShadow: '0 -2px 8px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            zIndex: 1000,
+          }}
+        >
+          <span style={{ flex: 1 }}>서버 오류: {error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            style={{
+              padding: '4px 12px',
+              background: 'rgba(255,255,255,0.2)',
+              border: '1px solid rgba(255,255,255,0.4)',
+              borderRadius: 4,
+              color: '#ff8a80',
+              cursor: 'pointer',
+              fontSize: 13,
+            }}
+          >
+            닫기
+          </button>
+        </div>
+      )}
     </div>
   );
 }

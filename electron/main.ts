@@ -3,7 +3,7 @@ import path from 'path';
 import https from 'https';
 import http from 'http';
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !app.isPackaged && process.env.NODE_ENV !== 'production';
 const JSON_FILE_NAME = 'wbs';
 
 function makeRequest(

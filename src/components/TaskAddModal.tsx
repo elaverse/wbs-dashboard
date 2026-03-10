@@ -9,9 +9,12 @@ interface TaskAddModalProps {
   onConfirm: (task: WbsTask) => void | Promise<void>;
   theme?: 'default' | 'light';
   defaultCategory?: string;
+  plannerLabel?: string;
+  foPmLabel?: string;
+  boPmLabel?: string;
 }
 
-export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', defaultCategory }: TaskAddModalProps) {
+export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', defaultCategory, plannerLabel = '기획자', foPmLabel = 'FO PM', boPmLabel = 'BO PM' }: TaskAddModalProps) {
   const isDark = theme === 'default';
   const bg = isDark ? '#2d2d2d' : '#fff';
   const textColor = isDark ? '#fff' : '#333';
@@ -162,7 +165,7 @@ export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', de
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>기획자</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>{plannerLabel}</label>
               <input
                 value={form.planner ?? ''}
                 onChange={(e) => update('planner', e.target.value)}
@@ -170,7 +173,7 @@ export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', de
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>FO PM</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>{foPmLabel}</label>
               <input
                 value={form.foPm ?? ''}
                 onChange={(e) => update('foPm', e.target.value)}
@@ -178,7 +181,7 @@ export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', de
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>BO PM</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>{boPmLabel}</label>
               <input
                 value={form.boPm ?? ''}
                 onChange={(e) => update('boPm', e.target.value)}
