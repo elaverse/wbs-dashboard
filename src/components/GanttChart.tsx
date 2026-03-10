@@ -12,6 +12,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 interface GanttChartProps {
   tasks: WbsTask[];
+  theme?: 'default' | 'light';
+  title?: string;
 }
 
 function parseDate(s: string | null | undefined): number {
@@ -19,11 +21,16 @@ function parseDate(s: string | null | undefined): number {
   return new Date(s).getTime();
 }
 
-export function GanttChart({ tasks }: GanttChartProps) {
+export function GanttChart({ tasks, theme = 'default', title = '간트 차트' }: GanttChartProps) {
+  const isDark = theme === 'default';
+  const bg = isDark ? '#2d2d2d' : '#fff';
+  const bgSidebar = isDark ? '#1a1a1a' : '#fafafa';
+  const borderColor = isDark ? '#444' : '#eee';
+  const textColor = isDark ? '#fff' : '#333';
+  const textMuted = isDark ? '#aaa' : '#555';
+  const rowBorder = isDark ? '#333' : '#f0f0f0';
   const { minTs, maxTs, weeks } = useMemo(() => {
     const dates = tasks.flatMap((t) => [
-      parseDate(t.plannedStart),
-      parseDate(t.plannedEnd),
       parseDate(t.start),
       parseDate(t.end),
     ]).filter((x) => !isNaN(x));
@@ -41,45 +48,49 @@ export function GanttChart({ tasks }: GanttChartProps) {
 
   const validTasks = useMemo(
     () => tasks.filter((t) => {
-      const start = parseDate(t.plannedStart) || parseDate(t.start);
-      const end = parseDate(t.plannedEnd) || parseDate(t.end) || start;
-      return !isNaN(start);
+      const start = parseDate(t.start);
+      const end = parseDate(t.end);
+      return !isNaN(start) && !isNaN(end);
     }),
     [tasks]
   );
 
   const range = maxTs - minTs || 1;
+  const ROW_HEIGHT = 36;
 
   if (validTasks.length === 0) {
     return (
-      <div style={{ background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-        <h2 style={{ padding: '16px 20px', fontSize: 18, fontWeight: 600, borderBottom: '1px solid #eee' }}>간트 차트</h2>
-        <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>표시할 데이터가 없습니다.</div>
+      <div style={{ background: bg, borderRadius: 8, boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <h2 style={{ padding: '16px 20px', fontSize: 18, fontWeight: 600, borderBottom: `1px solid ${borderColor}`, color: textColor }}>{title}</h2>
+        <div style={{ padding: 40, textAlign: 'center', color: textMuted }}>표시할 데이터가 없습니다.</div>
       </div>
     );
   }
 
   return (
-    <div style={{ background: '#fff', borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-      <h2 style={{ padding: '16px 20px', fontSize: 18, fontWeight: 600, borderBottom: '1px solid #eee' }}>간트 차트</h2>
+    <div style={{ background: bg, borderRadius: 8, boxShadow: isDark ? '0 1px 3px rgba(0,0,0,0.3)' : '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+      <h2 style={{ padding: '16px 20px', fontSize: 18, fontWeight: 600, borderBottom: `1px solid ${borderColor}`, color: textColor }}>{title}</h2>
       <div style={{ display: 'flex', minHeight: 200 }}>
-        <div style={{ flex: '0 0 220px', borderRight: '1px solid #eee', background: '#fafafa' }}>
-          <div style={{ padding: '10px 12px', fontSize: 12, fontWeight: 600, color: '#555', borderBottom: '1px solid #eee' }}>
+        <div style={{ flex: '0 0 220px', borderRight: `1px solid ${borderColor}`, background: bgSidebar, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: ROW_HEIGHT, display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 12, fontWeight: 600, color: textMuted, borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
             업무
           </div>
           {validTasks.map((t, i) => (
             <div
               key={i}
               style={{
+                height: ROW_HEIGHT,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 12px',
+                padding: '0 12px',
                 fontSize: 13,
-                borderBottom: '1px solid #eee',
+                borderBottom: `1px solid ${borderColor}`,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
+                flexShrink: 0,
+                color: textColor,
               }}
             >
               <span
@@ -91,23 +102,25 @@ export function GanttChart({ tasks }: GanttChartProps) {
                   background: STATUS_COLORS[t.status] ?? '#757575',
                 }}
               />
-              {t.task || '(제목 없음)'}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.task || '(제목 없음)'}</span>
             </div>
           ))}
         </div>
-        <div style={{ flex: 1, overflowX: 'auto', minWidth: 0 }}>
-          <div style={{ display: 'flex', borderBottom: '1px solid #eee' }}>
+        <div style={{ flex: 1, overflowX: 'auto', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ height: ROW_HEIGHT, display: 'flex', borderBottom: `1px solid ${borderColor}`, flexShrink: 0 }}>
             {weeks.map((w, i) => (
               <div
                 key={i}
                 style={{
                   flex: 1,
                   minWidth: 60,
-                  padding: '10px 8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 8px',
                   fontSize: 12,
                   fontWeight: 600,
-                  color: '#555',
-                  textAlign: 'center',
+                  color: textMuted,
                 }}
               >
                 {w}
@@ -115,18 +128,21 @@ export function GanttChart({ tasks }: GanttChartProps) {
             ))}
           </div>
           {validTasks.map((t, i) => {
-            const start = parseDate(t.plannedStart) || parseDate(t.start);
-            const end = parseDate(t.plannedEnd) || parseDate(t.end) || start + 24 * 60 * 60 * 1000;
-            const left = ((start - minTs) / range) * 100;
-            const width = Math.max(((end - start) / range) * 100, 1);
+            const start = parseDate(t.start);
+            const end = parseDate(t.end);
+            const barStart = Math.min(start, end);
+            const barEnd = Math.max(start, end);
+            const left = ((barStart - minTs) / range) * 100;
+            const width = Math.max(((barEnd - barStart) / range) * 100, 0.5);
             const color = STATUS_COLORS[t.status] ?? '#757575';
             return (
               <div
                 key={i}
                 style={{
+                  height: ROW_HEIGHT,
                   position: 'relative',
-                  height: 36,
-                  borderBottom: '1px solid #f0f0f0',
+                  borderBottom: `1px solid ${rowBorder}`,
+                  flexShrink: 0,
                 }}
               >
                 <div

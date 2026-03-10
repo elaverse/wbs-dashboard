@@ -1,16 +1,35 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { WbsTask } from '../types/wbs';
-import { defaultTask, STATUS_OPTIONS } from '../data/wbsData';
+import { defaultTask, STATUS_OPTIONS, CATEGORY_OPTIONS } from '../data/wbsData';
 import { validateTask } from '../utils/validation';
 
 interface TaskAddModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (task: WbsTask) => void | Promise<void>;
+  theme?: 'default' | 'light';
+  defaultCategory?: string;
 }
 
-export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) {
-  const [form, setForm] = useState<WbsTask>(defaultTask);
+export function TaskAddModal({ isOpen, onClose, onConfirm, theme = 'default', defaultCategory }: TaskAddModalProps) {
+  const isDark = theme === 'default';
+  const bg = isDark ? '#2d2d2d' : '#fff';
+  const textColor = isDark ? '#fff' : '#333';
+  const textMuted = isDark ? '#aaa' : '#555';
+  const borderColor = isDark ? '#444' : '#eee';
+  const inputBorder = isDark ? '#555' : '#ddd';
+  const inputBg = isDark ? '#1a1a1a' : undefined;
+  const cancelBg = isDark ? '#444' : '#f5f5f5';
+  const [form, setForm] = useState<WbsTask>(() => ({
+    ...defaultTask,
+    category: defaultCategory ?? defaultTask.category,
+  }));
+
+  useEffect(() => {
+    if (isOpen) {
+      setForm({ ...defaultTask, category: defaultCategory ?? defaultTask.category });
+    }
+  }, [isOpen, defaultCategory]);
   const [submitting, setSubmitting] = useState(false);
 
   const update = useCallback((key: keyof WbsTask, value: unknown) => {
@@ -62,44 +81,49 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
     >
       <div
         style={{
-          background: '#fff',
+          background: bg,
           borderRadius: 8,
           boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
           width: '90%',
           maxWidth: 520,
           maxHeight: '90vh',
           overflowY: 'auto',
+          color: textColor,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ padding: '20px 24px 16px', fontSize: 18, fontWeight: 600, borderBottom: '1px solid #eee' }}>
+        <h2 style={{ padding: '20px 24px 16px', fontSize: 18, fontWeight: 600, borderBottom: `1px solid ${borderColor}` }}>
           업무 추가
         </h2>
         <form onSubmit={handleSubmit} style={{ padding: '20px 24px 24px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>카테고리</label>
-              <input
-                value={form.category}
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>카테고리</label>
+              <select
+                value={form.category ?? ''}
                 onChange={(e) => update('category', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
-              />
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
+              >
+                {CATEGORY_OPTIONS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>업무</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>업무</label>
               <input
                 value={form.task}
                 onChange={(e) => update('task', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
                 required
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>상태</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>상태</label>
               <select
                 value={form.status}
                 onChange={(e) => update('status', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
               >
                 {STATUS_OPTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -109,68 +133,84 @@ export function TaskAddModal({ isOpen, onClose, onConfirm }: TaskAddModalProps) 
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>예정일</label>
-              <input
-                type="date"
-                value={form.plannedStart}
-                onChange={(e) => update('plannedStart', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>시작일</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>시작일</label>
               <input
                 type="date"
                 value={form.start ?? ''}
                 onChange={(e) => update('start', e.target.value || null)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>종료일</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>종료예정일</label>
+              <input
+                type="date"
+                value={form.plannedEnd ?? ''}
+                onChange={(e) => update('plannedEnd', e.target.value || null)}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>종료일</label>
               <input
                 type="date"
                 value={form.end ?? ''}
                 onChange={(e) => update('end', e.target.value || null)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16, marginBottom: 16 }}>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>PM</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>기획자</label>
               <input
-                value={form.pm}
-                onChange={(e) => update('pm', e.target.value)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                value={form.planner ?? ''}
+                onChange={(e) => update('planner', e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
               />
             </div>
             <div>
-              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>MM</label>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>FO PM</label>
               <input
-                type="number"
-                min={0}
-                value={form.mm}
-                onChange={(e) => update('mm', Number(e.target.value) || 0)}
-                style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+                value={form.foPm ?? ''}
+                onChange={(e) => update('foPm', e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>BO PM</label>
+              <input
+                value={form.boPm ?? ''}
+                onChange={(e) => update('boPm', e.target.value)}
+                style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
               />
             </div>
           </div>
           <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: '#555' }}>비고</label>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>MM</label>
+            <input
+              type="number"
+              min={0}
+              value={form.mm}
+              onChange={(e) => update('mm', Number(e.target.value) || 0)}
+              style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 500, color: textMuted }}>비고</label>
             <input
               value={form.note ?? ''}
               onChange={(e) => update('note', e.target.value || undefined)}
               placeholder="비고"
-              style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: 6 }}
+              style={{ width: '100%', padding: '8px 12px', border: `1px solid ${inputBorder}`, borderRadius: 6, background: inputBg, color: textColor }}
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, paddingTop: 20, borderTop: '1px solid #eee' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, paddingTop: 20, borderTop: `1px solid ${borderColor}` }}>
             <button
               type="button"
               onClick={handleCancel}
               disabled={submitting}
-              style={{ padding: '10px 20px', background: '#f5f5f5', color: '#333', border: '1px solid #ddd', borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
+              style={{ padding: '10px 20px', background: cancelBg, color: textColor, border: `1px solid ${inputBorder}`, borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}
             >
               취소
             </button>

@@ -3,11 +3,13 @@ import type { WbsTask } from '../types/wbs';
 const HEADERS = [
   '카테고리',
   '업무',
-  '예정일',
   '시작일',
+  '종료예정일',
   '종료일',
   '상태',
-  'PM',
+  '기획자',
+  'FO PM',
+  'BO PM',
   'MM',
   '비고',
 ];
@@ -23,11 +25,13 @@ function rowToCsv(task: WbsTask): string[] {
   return [
     task.category,
     task.task,
-    task.plannedStart ?? '',
     task.start ?? '',
+    task.plannedEnd ?? '',
     task.end ?? '',
     task.status,
-    task.pm,
+    task.planner ?? '',
+    task.foPm ?? '',
+    task.boPm ?? '',
     String(task.mm ?? 0),
     task.note ?? '',
   ].map(escapeCsv);

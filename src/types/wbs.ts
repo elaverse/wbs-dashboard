@@ -8,7 +8,10 @@ export interface WbsTask {
   end: string | null;
   planner: string;
   developer: string;
-  pm: string;
+  /** @deprecated use foPm, boPm - 기존 데이터 호환용 */
+  pm?: string;
+  foPm: string;
+  boPm: string;
   status: string;
   mm: number;
   note?: string;
